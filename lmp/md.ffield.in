@@ -1,0 +1,117 @@
+# MD Water-hBN
+
+dimension	3
+boundary	p p p
+
+units       metal # METAL!!!
+atom_style	full
+
+read_data   w-hbn.lmp.full
+replicate 	1 1 2
+
+group water 	type 1 4
+group hbn       type 3 4
+
+mass 1 1.0079 # H
+mass 2 10.811 # B
+mass 3 17.007 # N
+mass 4 15.999 # O
+
+##############################
+
+pair_style      hybrid/overlay lj/cut/coul/long 10 tersoff
+pair_coeff      * * tersoff BNC.tersoff NULL B N NULL
+
+pair_coeff      * * lj/cut/coul/long 0.0 0.0
+
+# water
+set type 1 charge  0.4238 # H
+set type 4 charge -0.8476 # O
+pair_coeff      4 4 lj/cut/coul/long 0.00673678877 3.166 # O-O
+
+bond_style harmonic
+bond_coeff 1 19.51 1.0
+
+angle_style harmonic
+angle_coeff 1 2.39 109.47
+
+#fix shake water shake 0.0001 20 0 b 1 a 1 # RIGID BOND & ANGLE
+kspace_style pppm 1.0e-4
+
+# water-hBN [J. Phys. Chem. B 2017, 121, 4137−4144]
+pair_coeff      2 4 lj/cut/coul/long 0.0054053370 3.311 # B-O
+pair_coeff      3 4 lj/cut/coul/long 0.0064894399 3.267 # N-O
+
+#neighbor       2.0 nsq
+#neigh_modify   every 1 delay 0 check no
+
+##############################
+
+variable        dens equal (mass(all)/vol*1.66054) # gr/cm3
+
+timestep 		0.0005
+thermo          100
+thermo_style    custom step temp etotal pe press lx ly lz v_dens
+
+dump            1 all xyz 100 dump.xyz
+dump_modify     1 sort id element H B N O
+
+############################## minimization
+
+#fix 		    1 all box/relax iso 0.0
+#min_style 	    cg
+#minimize       0.0 1.0e-8 100 1000
+#unfix		    1
+
+##############################
+
+variable T      equal 300
+variable P      equal 1.0
+velocity   		water create 1 2344 dist gaussian mom yes rot yes
+velocity   		hbn   create 1 5234 dist gaussian mom yes rot yes
+
+# ---
+
+fix             rlx all npt temp $T $T 0.1 aniso $P $P 1
+run 			30000
+unfix			rlx
+write_data      w-hbn-rlx.lmp
+
+# ---
+
+compute         e0 all pe/atom
+dump            dataset all custom 50 ffield.data id x y z type q c_e0 fx fy fz
+dump_modify     dataset sort id append yes
+reset_timestep  0
+
+# ================= NVT
+
+#restart         1000 lmp/restart.*.data
+
+# ---
+
+fix             rlx all nvt temp $T 600 0.1
+run 			10000
+unfix			rlx
+
+# ---
+
+#restart         0
+
+# ================= NPT
+
+fix             rlx all npt temp $T $T 0.1 aniso $P $P 1
+#run 			5000
+unfix			rlx
+
+# ================== Out range ensemble
+
+variable        e equal 0.025
+fix             dfm all deform 1 z erate $e x erate $e y erate $e remap v
+fix             rlx all nvt temp 300 300 0.1
+#run 			5000
+unfix			rlx
+
+# ---
+
+#write_data      restart.data

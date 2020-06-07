@@ -1,0 +1,75 @@
+###############################################################################
+# MD simulation for NN water
+###############################################################################
+
+###############################################################################
+# VARIABLES
+###############################################################################
+clear
+# Configuration files
+variable cfgFile         string "../../w-hbn-rlx.lmp"
+# Timesteps
+variable numSteps        equal  1
+variable dt              equal  0.0005
+# NN
+variable nnpCutoff       equal  6.36
+variable nnpDir          string "./"
+
+###############################################################################
+# GENERAL SETUP
+###############################################################################
+units metal   # METAL!!!
+boundary p p p
+atom_style full
+read_data ${cfgFile}
+#read_restart ${cfgFile}
+replicate 1 1 1
+timestep ${dt}
+thermo 10
+
+###############################################################################
+# NN
+###############################################################################
+pair_style nnp dir ${nnpDir} showew no showewsum 0 resetew yes maxew 1000 cflength 1.8897261328 cfenergy 0.0367493 # eV -> Hartree !!!
+pair_coeff * * ${nnpCutoff}
+
+###############################################################################
+# SETTING
+###############################################################################
+#dump            pbc all atom 10 dump.lammpstrj
+#dump            1 all xyz 10 dump.xyz
+#dump_modify     1 sort id element H B N O
+
+variable  dens equal (mass(all)/vol*1.66054) # gr/cm3
+thermo_style   custom step temp etotal pe press lx ly lz v_dens
+
+###############################################################################
+# SIMULATION
+###############################################################################
+
+
+##############################
+
+compute         e0 all pe/atom
+variable        e equal pe
+
+# ---
+
+variable a loop 10000
+label loop
+
+# read atomic position and charge from input dump file
+variable f equal 10*($a-1)  # specify timestep for the snapshot
+read_dump ../../nnp.data $f x y z q box yes replace yes #type q c_e0 fx fy fz  # dump file must include atom id
+
+dump            dataset all custom 1 nnp.data id x y z type q c_e0 fx fy fz
+dump_modify     dataset sort id append yes
+#reset_timestep  0
+
+# recalculate force, energy
+run 0  # rerun command does not read atom charge!
+undump dataset
+print "nnp-energy = $e"
+
+next a
+jump md.nnp.rerun.in loop

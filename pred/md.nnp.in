@@ -1,0 +1,81 @@
+###############################################################################
+# MD simulation for NN water
+###############################################################################
+clear
+###############################################################################
+# VARIABLES
+###############################################################################
+# Configuration files
+variable cfgFile         string "w-hbn-rlx.lmp"
+# Timesteps
+variable numSteps        equal  5000
+variable dt              equal  0.0005
+# NN
+variable nnpCutoff       equal  6.36
+variable nnpDir          string "./"
+
+###############################################################################
+# GENERAL SETUP
+###############################################################################
+units metal   # METAL!!!
+boundary p p p
+atom_style full
+read_data ${cfgFile}
+#read_restart ${cfgFile}
+#replicate 1 1 1
+timestep ${dt}
+thermo 10
+
+###############################################################################
+# NN
+###############################################################################
+pair_style nnp dir ${nnpDir} showew no showewsum 0 resetew yes maxew 10000 cflength 1.8897261328 cfenergy 0.0367493 # eV -> Hartree !!!
+pair_coeff * * ${nnpCutoff}
+
+###############################################################################
+# SETTING
+###############################################################################
+
+dump            pbc all atom 10 dump.lammpstrj
+dump            1 all xyz 10 dump.xyz
+dump_modify     1 sort id element H B N O
+
+# ---
+
+group           wat type 1 4
+group           sub type 2 3   
+compute         Twat wat temp
+compute         Tsub sub temp
+
+# ---
+
+variable  dens equal (mass(all)/vol*1.66054) # gr/cm3
+thermo_style   custom step temp c_Twat c_Tsub etotal pe lx ly lz v_dens
+
+###############################################################################
+# SIMULATION
+###############################################################################
+
+variable T      equal 300
+variable P      equal 1.0
+
+velocity   	    all create $T 735676 dist gaussian mom yes rot yes
+
+# ---
+
+compute         e0 all pe/atom
+dump            dataset all custom 10 nnp.data id x y z type q c_e0 fx fy fz
+dump_modify     dataset sort id append yes
+reset_timestep  0
+
+# ---
+
+variable        e equal -0.1
+#fix             dfm all deform 1 x erate $e remap v # x erate $e y erate $e
+
+fix        		 rlx all nvt temp $T 500 0.05 #aniso $P $P 0.5
+run 			 ${numSteps}
+
+# ---
+
+write_data      w-hbn-rlx-nnp.data

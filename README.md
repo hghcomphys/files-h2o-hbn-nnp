@@ -1,5 +1,5 @@
 # files-h2o-hbn-nnp
-Script files for our paper: _Insights into water permeation through hBN nanoapillaries by ab initio machine learning molecular dynamics simulations_
+Script files for my paper: _Insights into water permeation through hBN nanoapillaries by ab initio machine learning molecular dynamics simulations_
 
 DOI: [https://doi.org/10.1021/acs.jpclett.0c01739](https://doi.org/10.1021/acs.jpclett.0c01739)
 
